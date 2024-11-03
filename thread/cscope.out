@@ -1,0 +1,256 @@
+cscope 15 $HOME/learning_ws/jyyos/libco               0000001108
+	@test_for_thread.c
+
+1 
+	~"thªad.h
+"
+
+3 
+	$maö
+() {
+
+6 
+	}
+}
+
+	@thread.h
+
+1 
+	~<°dlib.h
+>
+
+2 
+	~<°dio.h
+>
+
+3 
+	~<°rög.h
+>
+
+4 
+	~<°d©omic.h
+>
+
+5 
+	~<as£π.h
+>
+
+6 
+	~<uni°d.h
+>
+
+7 
+	~<±hªad.h
+>
+
+9 
+	#NTHREAD
+ 64
+
+	)
+
+10 íum { 
+	mT_FREE
+ = 0, 
+	mT_LIVE
+, 
+	mT_DEAD
+, };
+
+11 
+	sthªad
+ {
+
+12 
+	mid
+, 
+	m°©us
+;
+
+13 
+±hªad_t
+ 
+	mthªad
+;
+
+14 (*
+	míåy
+)();
+
+17 
+thªad
+ 
+	gçoﬁ
+[
+NTHREAD
+], *
+	gçå
+ = 
+çoﬁ
+;
+
+19 *
+	$wøµî
+(*
+¨g
+) {
+
+20 
+thªad
+ *thªad = (thªad *)
+¨g
+;
+
+21 
+thªad
+->
+	`íåy
+—hªad->
+id
+);
+
+22  
+NULL
+;
+
+23 
+	}
+}
+
+25 
+	$¸óã
+(*
+‚
+) {
+
+26 
+	`as£π
+(
+çå
+ - 
+çoﬁ
+ < 
+NTHREAD
+);
+
+27 *
+çå
+ = (
+thªad
+) {
+
+28 .
+id
+ = 
+çå
+ - 
+çoﬁ
+ + 1,
+
+29 .
+°©us
+ = 
+T_LIVE
+,
+
+30 .
+íåy
+ = 
+‚
+,
+
+32 
+	`±hªad_¸óã
+(&(
+çå
+->
+thªad
+), 
+NULL
+, 
+wøµî
+,Åptr);
+
+33 ++
+çå
+;
+
+34 
+	}
+}
+
+36 
+	$joö
+() {
+
+37 
+i
+ = 0; i < 
+NTHREAD
+; i++) {
+
+38 
+thªad
+ *
+t
+ = &
+çoﬁ
+[
+i
+];
+
+39 i‡(
+t
+->
+°©us
+ =
+T_LIVE
+) {
+
+40 
+	`±hªad_joö
+(
+t
+->
+thªad
+, 
+NULL
+);
+
+41 
+t
+->
+°©us
+ = 
+T_DEAD
+;
+
+44 
+	}
+}
+
+46 
+__©åibuã__
+((
+de°ru˘‹
+)Ë
+	$˛ónup
+() {
+
+47 
+	`joö
+();
+
+48 
+	}
+}
+
+	@
+1
+.
+1
+/usr/include
+2
+27
+test_for_thread.c
+thread.h
