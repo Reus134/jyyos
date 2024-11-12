@@ -21,7 +21,7 @@ void       co_wait(struct co *co);
 #include <assert.h>
 #include <unistd.h>
 #include <pthread.h>
-
+#include "co-test.h"
 #define LOCAL_MACHINE
 #ifdef LOCAL_MACHINE
   #define debug(...) printf(__VA_ARGS__)

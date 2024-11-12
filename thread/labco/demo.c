@@ -10,9 +10,22 @@ void entry(void *arg) {
   }
 }
 
+static void work_loop(void *arg) {
+    const char *s = (const char*)arg;
+    for (int i = 0; i < 100; ++i) {
+        printf("%s%d  ", s, get_count());
+        add_count();
+        co_yield();
+    }
+}
+
+static void work(void *arg) {
+    work_loop(arg);
+}
+
 int main() {
-  struct co *co1 = co_start("co1", entry, "a");
-  struct co *co2 = co_start("co2", entry, "b");
+  struct co *co1 = co_start("co1", work, "a");
+  struct co *co2 = co_start("co2", work, "b");
   co_wait(co1);
   co_wait(co2);
   printf("Done\n");
