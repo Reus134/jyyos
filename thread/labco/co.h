@@ -21,7 +21,7 @@ void       co_wait(struct co *co);
 #include <assert.h>
 #include <unistd.h>
 #include <pthread.h>
-#include "co-test.h"
+//#include "co-test.h"
 #define LOCAL_MACHINE
 #ifdef LOCAL_MACHINE
   #define debug(...) printf(__VA_ARGS__)
@@ -29,12 +29,6 @@ void       co_wait(struct co *co);
   #define debug()
 #endif
 
-enum co_status {
-  CO_NEW = 1, // 新创建，还未执行过
-  CO_RUNNING, // 已经执行过
-  CO_WAITING, // 在 co_wait 上等待
-  CO_DEAD,    // 已经结束，但还未释放资源
-};
 // 协程共享内存 需要有独立的堆栈和寄存器
 
 

@@ -1,4 +1,5 @@
 #include "co.h"
+//#include "co-test.h"
 #include <stdlib.h>
 #include <setjmp.h>
 #include <stdio.h>
@@ -6,8 +7,11 @@
 #define STACK_SIZE 64
 #define CO_MAX_NUM 32
 typedef unsigned char uint8_t;
-//当前
-struct co *current;
+
+struct co *current = NULL;
+struct co *active_cos[10] = {0};
+int active_co_numbers = 0;
+int current_index = 0;
 
 enum co_status {
     CO_NEW = 1, // 新创建，还未执行过
@@ -28,15 +32,26 @@ struct co {
 };
 
 struct co *co_start(const char *name, void (*func)(void *), void *arg) {
-    struct co *cur_co = malloc(sizeof(struct co)); 
-    cur_co->status = CO_NEW;
-    cur_co->name = name;
-    cur_co->arg = arg;
-    cur_co->func=func;
-    cur_co->waiter = NULL;
+
+    if (active_co_numbers == 0) {
+        struct co *main_co = malloc(sizeof(struct co)); 
+        main_co->status = CO_NEW;
+        main_co->name = "main";
+        main_co->waiter = NULL;
+        active_cos[current_index] = main_co;
+    }
+
+    struct co *init_co = malloc(sizeof(struct co)); 
+    init_co->status = CO_NEW;
+    init_co->name = name;
+    init_co->arg = arg;
+    init_co->func = func;
+    init_co->waiter = NULL;
     //共享内存里的current 指针指向cur_co
     //current = cur_co;
-    return cur_co;
+    active_co_numbers++;
+    active_cos[active_co_numbers] = init_co;
+    return init_co;
 }
 
 /*
@@ -45,12 +60,11 @@ struct co *co_start(const char *name, void (*func)(void *), void *arg) {
 */
 // current需要等待co执行完 当前协程需要等待co执行
 void co_wait(struct co *co) {
-    current->status = CO_WAITING;
-    current->waiter = co;
     while(co->status != CO_DEAD) {
         co_yield();
-        co->status = CO_DEAD;
+        //co->status = CO_DEAD;
     }
+    // 走到这说明一家CO_DEAD
     free(co);
 }
 
@@ -71,24 +85,27 @@ void co_wait(struct co *co) {
     );
 */
 
+static int get_random_except_current(int index, int bound) {
+    int num;
+    do {
+        num = rand() % bound + 1; // 生成 [1, bound] 范围的随机数
+    } while (num == index);        // 排除 index
+    return num;
+}
 void co_yield() {
     //保留当前的context
-    int val = setjmp(current->context);
-    if (val == 0) {
-        // 随机选择一个协程 搞个队列？
-        if (current->waiter != NULL) {
-            current = current->waiter;
-        }
-        
-        current->status = CO_RUNNING;
-        //执行这个函数
-        current->func(NULL);
+    int ret = setjmp(active_cos[current_index]->context);
+    if (ret == 0) {
+        //需要选择一个随机的co运行,当然要除去当前的co
+        current_index = get_random_except_current(current_index, active_co_numbers);
+        active_cos[current_index]->status = CO_RUNNING;
         //函数返回则long jmp回来
-        current->status = CO_DEAD;
-        longjmp(current->context, 1);
+        active_cos[current_index]->func(active_cos[current_index]->arg);
+        active_cos[current_index]->status = CO_DEAD;
+        longjmp(active_cos[current_index]->context, 1);
     } else {
         // 如果某个地方通过long jump回到了这里
-        current->status = CO_DEAD;
-        printf("return to this\n");
+        active_cos[current_index]->status = CO_DEAD;
+        printf("co index = %d return to this\n",current_index);
     }
 }
