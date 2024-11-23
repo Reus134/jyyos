@@ -1,5 +1,8 @@
 #include "co.h"
 #include <stdlib.h>
+#include <setjmp.h>
+#include <stdio.h>
+#include <stdint.h>
 
 #define STACK_SIZE 64
 #define CO_MAX_NUM 32
