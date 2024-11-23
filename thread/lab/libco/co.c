@@ -127,16 +127,16 @@ void co_yield() {
     //选择的协程是新创建的，此时该协程还没有执行过任何代码，我们需要首先执行 stack_switch_call 切换栈，然后开始执行协程的代码；
     //选择的协程是调用 yield() 切换出来的，此时该协程已经调用过 setjmp 保存寄存器现场，我们直接 longjmp 恢复寄存器现场即可。
     current_index = get_random_except_current(current_index, active_co_numbers);
-    struct co* current_co = active_cos[current_index];
+    //struct co* current_co = active_cos[current_index];
     ret = setjmp(active_cos[old_index]->context);
     active_cos[old_index]->status = CO_WAITING;
     if (ret == 0) {
-        if (current_co->status == CO_NEW) {
-            current_co->status = CO_RUNNING;
-            stack_switch_call(current_co->stack, current_co->func, (uintptr_t)current_co->arg);
+        if (active_cos[current_index]->status == CO_NEW) {
+            active_cos[current_index]->status = CO_RUNNING;
+            stack_switch_call(active_cos[current_index]->stack, active_cos[current_index]->func, (uintptr_t)active_cos[current_index]->arg);
         } else {
-            current_co->status = CO_RUNNING;
-            longjmp(current_co->context, 1);
+            active_cos[current_index]->status = CO_RUNNING;
+            longjmp(active_cos[current_index]->context, 1);
         }
     } else {
         printf("co index = %d return to this\n",current_index);
