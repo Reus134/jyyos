@@ -133,7 +133,7 @@ void co_yield() {
     if (ret == 0) {
         if (current_co->status == CO_NEW) {
             current_co->status = CO_RUNNING;
-            stack_switch_call(current_co->stack, current_co->func, current_co->arg);
+            stack_switch_call(current_co->stack, current_co->func, (uintptr_t)current_co->arg);
         } else {
             current_co->status = CO_RUNNING;
             longjmp(current_co->context, 1);
