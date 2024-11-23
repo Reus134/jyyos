@@ -117,16 +117,31 @@ static void test_2() {
     q_free(queue);
 }
 
+// int main() {
+//     setbuf(stdout, NULL);
+
+//     printf("Test #1. Expect: (X|Y){0, 1, 2, ..., 199}\n");
+//     test_1();
+
+//     printf("\n\nTest #2. Expect: (libco-){200, 201, 202, ..., 399}\n");
+//     test_2();
+
+//     printf("\n\n");
+
+//     return 0;
+// }
+int count = 1; // 协程之间共享
+void entry(void *arg) {
+  for (int i = 0; i < 2; i++) {
+    printf("%s[%d] i = %d\n", (const char *)arg, count++, i);
+    co_yield();
+  }
+}
+
 int main() {
-    setbuf(stdout, NULL);
-
-    printf("Test #1. Expect: (X|Y){0, 1, 2, ..., 199}\n");
-    test_1();
-
-    printf("\n\nTest #2. Expect: (libco-){200, 201, 202, ..., 399}\n");
-    test_2();
-
-    printf("\n\n");
-
-    return 0;
+  struct co *co1 = co_start("co1", entry, "a");
+  struct co *co2 = co_start("co2", entry, "b");
+  co_wait(co1);
+  co_wait(co2);
+  printf("Done\n");
 }
