@@ -86,18 +86,22 @@ static int get_random_except_current(int index, int bound) {
     return num;
 }
 
-static inline void stack_switch_call(void *sp, void *entry, uintptr_t arg) {
-  asm volatile (
+/*
+ * 切换栈，即让选中协程的所有堆栈信息在自己的堆栈中，而非调用者的堆栈。保存调用者需要保存的寄存器，并调用指定的函数
+ */
+static inline void stack_switch_call(void *sp, void *entry, void *arg) {
+  asm volatile(
 #if __x86_64__
-    "movq %0, %%rsp; movq %2, %%rdi; jmp *%1"
-      : : "b"((uintptr_t)sp), "d"(entry), "a"(arg) : "memory"
+      "movq %%rcx, 0(%0); movq %0, %%rsp; movq %2, %%rdi; call *%1"
+      :
+      : "b"((uintptr_t)sp - 16), "d"((uintptr_t)entry), "a"((uintptr_t)arg)
 #else
-    "movl %0, %%esp; movl %2, 4(%0); jmp *%1"
-      : : "b"((uintptr_t)sp - 8), "d"(entry), "a"(arg) : "memory"
+      "movl %%ecx, 4(%0); movl %0, %%esp; movl %2, 0(%0); call *%1"
+      :
+      : "b"((uintptr_t)sp - 8), "d"((uintptr_t)entry), "a"((uintptr_t)arg)
 #endif
   );
 }
-
 /*
  * 从调用的指定函数返回，并恢复相关的寄存器。此时协程执行结束，以后再也不会执行该协程的上下文。这里需要注意的是，其和上面并不是对称的，因为调用协程给了新创建的选中协程的堆栈，则选中协程以后就在自己的堆栈上执行，永远不会返回到调用协程的堆栈。
  */
@@ -114,6 +118,7 @@ static inline void restore_return() {
 #endif
   );
 }
+
 /*
 //选择的协程是新创建的，此时该协程还没有执行过任何代码，我们需要首先执行 stack_switch_call 切换栈，然后开始执行协程的代码；
 //选择的协程是调用 yield() 切换出来的，此时该协程已经调用过 setjmp 保存寄存器现场，我们直接 longjmp 恢复寄存器现场即可。
