@@ -1,10 +1,10 @@
 #include "co.h"
-//#include "co-test.h"
 #include <stdlib.h>
 #include <setjmp.h>
 #include <stdio.h>
+#include <stdint.h>
 
-#define STACK_SIZE 64
+#define STACK_SIZE 64 * 1024
 #define CO_MAX_NUM 32
 typedef unsigned char uint8_t;
 
@@ -21,14 +21,14 @@ enum co_status {
 };
 
 struct co {
-    char *name;
-    void (*func)(void *); // co_start 指定的入口地址和参数
-    void *arg;
+  const char *name;
+  void (*func)(void *); // co_start 指定的入口地址和参数
+  void *arg;
 
-    enum co_status status;  // 协程的状态
-    struct co*     waiter;  // 是否有其他协程在等待当前协程
-    jmp_buf        context; // 寄存器现场 (setjmp.h)
-    uint8_t        stack[STACK_SIZE]; // 协程的栈
+  enum co_status status;  // 协程的状态
+  struct co*     waiter;  // 是否有其他协程在等待当前协程
+  jmp_buf        context; // 寄存器现场 (setjmp.h)
+  uint8_t        stack[STACK_SIZE]; // 协程的栈
 };
 
 struct co *co_start(const char *name, void (*func)(void *), void *arg) {
@@ -51,6 +51,19 @@ struct co *co_start(const char *name, void (*func)(void *), void *arg) {
     //current = cur_co;
     active_co_numbers++;
     active_cos[active_co_numbers] = init_co;
+    // if(setjmp(init_co->context) == 0) {
+    //     printf("%s init setjmp\n",init_co->name);
+    // } else {
+    //     active_cos[current_index]->func(active_cos[current_index]->arg);
+    //     active_cos[current_index]->status = CO_DEAD;
+    //     active_co_numbers--;
+    //     if(!active_co_numbers) {
+    //         //回主协程（main）
+    //         longjmp(active_cos[0]->context, 1);
+    //     }
+    //     co_yield();
+    // }
+
     return init_co;
 }
 
@@ -67,6 +80,7 @@ void co_wait(struct co *co) {
     // 走到这说明一家CO_DEAD
     free(co);
 }
+
 
 /*
 1.为每一个协程分配独立的堆栈；堆栈顶的指针由 %rsp 寄存器确定；
@@ -92,20 +106,42 @@ static int get_random_except_current(int index, int bound) {
     } while (num == index);        // 排除 index
     return num;
 }
+
+static inline void stack_switch_call(void *sp, void *entry, uintptr_t arg) {
+  asm volatile (
+#if __x86_64__
+    "movq %0, %%rsp; movq %2, %%rdi; jmp *%1"
+      : : "b"((uintptr_t)sp), "d"(entry), "a"(arg) : "memory"
+#else
+    "movl %0, %%esp; movl %2, 4(%0); jmp *%1"
+      : : "b"((uintptr_t)sp - 8), "d"(entry), "a"(arg) : "memory"
+#endif
+  );
+}
+
 void co_yield() {
     //保留当前的context
-    int ret = setjmp(active_cos[current_index]->context);
+    int ret = -1;
+    //ret = setjmp(active_cos[current_index]->context);
+    int old_index = current_index;
+    //选择的协程是新创建的，此时该协程还没有执行过任何代码，我们需要首先执行 stack_switch_call 切换栈，然后开始执行协程的代码；
+    //选择的协程是调用 yield() 切换出来的，此时该协程已经调用过 setjmp 保存寄存器现场，我们直接 longjmp 恢复寄存器现场即可。
+    current_index = get_random_except_current(current_index, active_co_numbers);
+    struct co *current_co = active_cos[current_index];
+    //struct co* current_co = active_cos[current_index];
+    ret = setjmp(active_cos[old_index]->context);
+    
+    active_cos[old_index]->status = CO_WAITING;
     if (ret == 0) {
-        //需要选择一个随机的co运行,当然要除去当前的co
-        current_index = get_random_except_current(current_index, active_co_numbers);
-        active_cos[current_index]->status = CO_RUNNING;
-        //函数返回则long jmp回来
-        active_cos[current_index]->func(active_cos[current_index]->arg);
-        active_cos[current_index]->status = CO_DEAD;
-        longjmp(active_cos[current_index]->context, 1);
+        if (current_co->status == CO_NEW) {
+            current_co->status = CO_RUNNING;
+            stack_switch_call((uintptr_t)(current_co->stack + STACK_SIZE),(uintptr_t)(current_co->func), (uintptr_t)(current_co->arg));
+        } else {
+            active_cos[current_index]->status = CO_RUNNING;
+            longjmp(active_cos[current_index]->context, 1);
+        }
     } else {
-        // 如果某个地方通过long jump回到了这里
-        active_cos[current_index]->status = CO_DEAD;
         printf("co index = %d return to this\n",current_index);
+        active_cos[current_index]->status = CO_DEAD;
     }
 }
