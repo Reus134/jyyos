@@ -129,7 +129,7 @@ void co_yield() {
         current = active_cos[current_index];
         if (current->status == CO_NEW) {
             current->status = CO_RUNNING;
-            stack_switch_call((uintptr_t)(current->stack + STACK_SIZE),(uintptr_t)(current->func), (uintptr_t)(current->arg));
+            stack_switch_call(current->stack + STACK_SIZE,current->func, current->arg);
               //恢复相关寄存器
             restore_return();
             //此时协程已经完成执行
