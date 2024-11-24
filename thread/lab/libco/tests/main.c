@@ -132,7 +132,7 @@ static void test_2() {
 // }
 int count = 1; // 协程之间共享
 void entry(void *arg) {
-  for (int i = 0; i < 2; i++) {
+  for (int i = 0; i < 10; i++) {
     printf("%s[%d] i = %d\n", (const char *)arg, count++, i);
     co_yield();
   }

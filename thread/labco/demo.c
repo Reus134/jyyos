@@ -24,7 +24,7 @@ int count = 1; // 协程之间共享
 // }
 
 void entry(void *arg) {
-  for (int i = 0 ;i < 2 ; i++) {
+  for (int i = 0 ;i < 1 ; i++) {
     printf("i = %d arg = %s \n", i, (const char *)arg);
     co_yield();
   }

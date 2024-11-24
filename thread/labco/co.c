@@ -3,6 +3,7 @@
 #include <setjmp.h>
 #include <stdio.h>
 #include <stdint.h>
+#include<assert.h>
 
 #define STACK_SIZE 64 * 1024
 #define CO_MAX_NUM 32
@@ -32,15 +33,6 @@ struct co {
 };
 
 struct co *co_start(const char *name, void (*func)(void *), void *arg) {
-
-    if (active_co_numbers == 0) {
-        struct co *main_co = malloc(sizeof(struct co)); 
-        main_co->status = CO_NEW;
-        main_co->name = "main";
-        main_co->waiter = NULL;
-        active_cos[current_index] = main_co;
-    }
-
     struct co *init_co = malloc(sizeof(struct co)); 
     init_co->status = CO_NEW;
     init_co->name = name;
@@ -51,19 +43,6 @@ struct co *co_start(const char *name, void (*func)(void *), void *arg) {
     //current = cur_co;
     active_co_numbers++;
     active_cos[active_co_numbers] = init_co;
-    // if(setjmp(init_co->context) == 0) {
-    //     printf("%s init setjmp\n",init_co->name);
-    // } else {
-    //     active_cos[current_index]->func(active_cos[current_index]->arg);
-    //     active_cos[current_index]->status = CO_DEAD;
-    //     active_co_numbers--;
-    //     if(!active_co_numbers) {
-    //         //回主协程（main）
-    //         longjmp(active_cos[0]->context, 1);
-    //     }
-    //     co_yield();
-    // }
-
     return init_co;
 }
 
@@ -119,29 +98,69 @@ static inline void stack_switch_call(void *sp, void *entry, uintptr_t arg) {
   );
 }
 
+/*
+ * 从调用的指定函数返回，并恢复相关的寄存器。此时协程执行结束，以后再也不会执行该协程的上下文。这里需要注意的是，其和上面并不是对称的，因为调用协程给了新创建的选中协程的堆栈，则选中协程以后就在自己的堆栈上执行，永远不会返回到调用协程的堆栈。
+ */
+static inline void restore_return() {
+  asm volatile(
+#if __x86_64__
+      "movq 0(%%rsp), %%rcx"
+      :
+      :
+#else
+      "movl 4(%%esp), %%ecx"
+      :
+      :
+#endif
+  );
+}
+/*
+//选择的协程是新创建的，此时该协程还没有执行过任何代码，我们需要首先执行 stack_switch_call 切换栈，然后开始执行协程的代码；
+//选择的协程是调用 yield() 切换出来的，此时该协程已经调用过 setjmp 保存寄存器现场，我们直接 longjmp 恢复寄存器现场即可。
+*/
 void co_yield() {
     //保留当前的context
     int ret = -1;
+    ret = setjmp(current->context);
     //ret = setjmp(active_cos[current_index]->context);
-    int old_index = current_index;
-    //选择的协程是新创建的，此时该协程还没有执行过任何代码，我们需要首先执行 stack_switch_call 切换栈，然后开始执行协程的代码；
-    //选择的协程是调用 yield() 切换出来的，此时该协程已经调用过 setjmp 保存寄存器现场，我们直接 longjmp 恢复寄存器现场即可。
-    current_index = get_random_except_current(current_index, active_co_numbers);
-    struct co *current_co = active_cos[current_index];
     //struct co* current_co = active_cos[current_index];
-    ret = setjmp(active_cos[old_index]->context);
-    
-    active_cos[old_index]->status = CO_WAITING;
     if (ret == 0) {
-        if (current_co->status == CO_NEW) {
-            current_co->status = CO_RUNNING;
-            stack_switch_call((uintptr_t)(current_co->stack + STACK_SIZE),(uintptr_t)(current_co->func), (uintptr_t)(current_co->arg));
+        current_index = get_random_except_current(current_index, active_co_numbers);
+        current = active_cos[current_index];
+        if (current->status == CO_NEW) {
+            current->status = CO_RUNNING;
+            stack_switch_call((uintptr_t)(current->stack + STACK_SIZE),(uintptr_t)(current->func), (uintptr_t)(current->arg));
+              //恢复相关寄存器
+            restore_return();
+            //此时协程已经完成执行
+            current->status = CO_DEAD;
+
+            if (current->waiter) {
+                current->waiter->status = CO_RUNNING;
+            }
+            co_yield();
         } else {
-            active_cos[current_index]->status = CO_RUNNING;
-            longjmp(active_cos[current_index]->context, 1);
+            current->status = CO_RUNNING;
+            longjmp(current->context, 1);
         }
-    } else {
-        printf("co index = %d return to this\n",current_index);
-        active_cos[current_index]->status = CO_DEAD;
+    }
+    assert(ret && current->status == CO_RUNNING);
+}
+
+static __attribute__((constructor)) void co_constructor(void) {
+    current = (struct co*)malloc(sizeof(struct co));
+    current->name = "main";
+    current->status = CO_RUNNING;
+    //active_cos[0] = current;
+}
+
+static __attribute__((destructor)) void co_destructor(void) {
+    if (current != NULL) {
+        free(current);
+    }
+    for(int i = 0; i < 10; i++) {
+        if (active_cos[i] != NULL) {
+            free(active_cos[i]);
+        }
     }
 }
